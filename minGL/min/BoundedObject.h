@@ -53,7 +53,7 @@ public:
 	void setIntersectionCallBack(void (*Invokef)(void *), void (*Resetf)(void *));
 	void Invoke(void* vp);
 	void Reset (void* vp);
-	virtual void createObject(GLObject** glObject, size_t n);
+	virtual void createObject(std::vector<GLObject*>& glObjects);
 	bool intersects(const BoundedObject& A);
 	bool intersects(const BoundedObject& A, void * vpi, void * vpr);
 	bool intersects(const BoundedObject& A, Vector3<pfd>& vp);

@@ -54,15 +54,65 @@ public:
 	friend class Frustum;
 	aabbox3(Vector3<T>* vertices, size_t size)
 	{
-		assert(size >= 2);
-		add(vertices, size);
-		_type = AABB;
+		if (vertices != 0)
+		{
+			if (size >= 2)
+			{
+				add(vertices, size);
+				_type = AABB;
+			}
+			else if (size == 1)
+			{
+				aabbox3<T> temp(Vector3<T>(0, 0, 0), Vector3<T>(1, 1, 1));
+				temp.setPosition(vertices[0]);
+				_minEdge = temp._minEdge;
+				_maxEdge = temp._maxEdge;
+				_type = AABB;
+			}
+			else
+			{
+				_minEdge = Vector3<T>(0, 0, 0);
+				_maxEdge = Vector3<T>(0, 0, 0);
+				_type = AABB;
+			}
+		}
+		else
+		{
+			_minEdge = Vector3<T>(0, 0, 0);
+			_maxEdge = Vector3<T>(0, 0, 0);
+			_type = AABB;
+		}
 	}
 	aabbox3(Vector4<T>* vertices, size_t size)
 	{
-		assert(size >= 2);
-		add(vertices, size);
-		_type = AABB;
+		if (vertices != 0)
+		{
+			if (size >= 2 && vertices != 0)
+			{
+				add(vertices, size);
+				_type = AABB;
+			}
+			else if (size == 1 && vertices != 0)
+			{
+				aabbox3<T> temp(Vector3<T>(0, 0, 0), Vector3<T>(1, 1, 1));
+				temp.setPosition(vertices[0]);
+				_minEdge = temp._minEdge;
+				_maxEdge = temp._maxEdge;
+				_type = AABB;
+			}
+			else
+			{
+				_minEdge = Vector3<T>(0, 0, 0);
+				_maxEdge = Vector3<T>(0, 0, 0);
+				_type = AABB;
+			}
+		}
+		else
+		{
+			_minEdge = Vector3<T>(0, 0, 0);
+			_maxEdge = Vector3<T>(0, 0, 0);
+			_type = AABB;
+		}
 	}
 	void add(Vector3<T>* vertices, size_t size)
 	{
@@ -182,8 +232,6 @@ public:
 		{
 			_minEdge = A._minEdge;
 			_maxEdge = A._maxEdge;
-			_absMinEdge = A._absMinEdge;
-			_absMaxEdge = A._absMaxEdge;
 			_type = AABB;
 		}
 	}
@@ -193,123 +241,134 @@ public:
 		{
 			_minEdge = A._minEdge;
 			_maxEdge = A._maxEdge;
-			_absMinEdge = A._absMinEdge;
-			_absMaxEdge = A._absMaxEdge;
 			_type = AABB;
 		}
 		return *this;
 	}
 	static const aabbox3<T> MostSeparatedPoints(Vector3<T>* vertices, size_t size)
 	{
-		assert(size >= 2);
-		size_t minx = 0;
-		size_t maxx = 0;
-		size_t miny = 0;
-		size_t maxy = 0;
-		size_t minz = 0;
-		size_t maxz = 0;
-		for(size_t i=0; i<size; i++)
+		if (size >= 2 && vertices != 0)
 		{
-			if(vertices[i].X() > vertices[maxx].X())
+			size_t minx = 0;
+			size_t maxx = 0;
+			size_t miny = 0;
+			size_t maxy = 0;
+			size_t minz = 0;
+			size_t maxz = 0;
+			for (size_t i = 0; i < size; i++)
 			{
-				maxx = i;
+				if (vertices[i].X() > vertices[maxx].X())
+				{
+					maxx = i;
+				}
+				if (vertices[i].X() < vertices[minx].X())
+				{
+					minx = i;
+				}
+				if (vertices[i].Y() > vertices[maxy].Y())
+				{
+					maxy = i;
+				}
+				if (vertices[i].Y() < vertices[miny].Y())
+				{
+					miny = i;
+				}
+				if (vertices[i].Z() > vertices[maxz].Z())
+				{
+					maxz = i;
+				}
+				if (vertices[i].Z() < vertices[minz].Z())
+				{
+					minz = i;
+				}
 			}
-			if(vertices[i].X() < vertices[minx].X())
+
+			T dist2x = (vertices[maxx] - vertices[minx]).dotProduct(vertices[maxx] - vertices[minx]);
+			T dist2y = (vertices[maxy] - vertices[miny]).dotProduct(vertices[maxy] - vertices[miny]);
+			T dist2z = (vertices[maxz] - vertices[minz]).dotProduct(vertices[maxz] - vertices[minz]);
+
+			size_t min = minx;
+			size_t max = maxx;
+
+			if (dist2y > dist2x && dist2y > dist2z)
 			{
-				minx = i;
+				max = maxy;
+				min = miny;
 			}
-			if(vertices[i].Y() > vertices[maxy].Y())
+			if (dist2z > dist2x && dist2z > dist2y)
 			{
-				maxy = i;
+				max = maxz;
+				min = minz;
 			}
-			if(vertices[i].Y() < vertices[miny].Y())
-			{
-				miny = i;
-			}
-			if(vertices[i].Z() > vertices[maxz].Z())
-			{
-				maxz = i;
-			}
-			if(vertices[i].Z() < vertices[minz].Z())
-			{
-				minz = i;
-			}
+			return aabbox3<T>(vertices[min], vertices[max]);
 		}
-
-		T dist2x = (vertices[maxx] - vertices[minx]).dotProduct(vertices[maxx] - vertices[minx]);
-		T dist2y = (vertices[maxy] - vertices[miny]).dotProduct(vertices[maxy] - vertices[miny]);
-		T dist2z = (vertices[maxz] - vertices[minz]).dotProduct(vertices[maxz] - vertices[minz]);
-
-		size_t min = minx;
-		size_t max = maxx;
-
-		if(dist2y > dist2x && dist2y > dist2z)
+		else
 		{
-			max = maxy;
-			min = miny;
+			return aabbox3<T>(vertices, size);
 		}
-		if(dist2z > dist2x && dist2z > dist2y)
-		{
-			max = maxz;
-			min = minz;
-		}
-		return aabbox3<T>(vertices[min], vertices[max]);
 	}
 	static const aabbox3<T> MostSeparatedPoints(Vector4<T>* vertices, size_t size)
 	{
-		assert(size >= 2);
-		size_t minx = 0;
-		size_t maxx = 0;
-		size_t miny = 0;
-		size_t maxy = 0;
-		size_t minz = 0;
-		size_t maxz = 0;
-		for(size_t i=0; i<size; i++)
+		if (size >= 2 && vertices != 0)
 		{
-			if(vertices[i].X() > vertices[maxx].X())
+
+			size_t minx = 0;
+			size_t maxx = 0;
+			size_t miny = 0;
+			size_t maxy = 0;
+			size_t minz = 0;
+			size_t maxz = 0;
+			for (size_t i = 0; i < size; i++)
 			{
-				maxx = i;
+				if (vertices[i].X() > vertices[maxx].X())
+				{
+					maxx = i;
+				}
+				if (vertices[i].X() < vertices[minx].X())
+				{
+					minx = i;
+				}
+				if (vertices[i].Y() > vertices[maxy].Y())
+				{
+					maxy = i;
+				}
+				if (vertices[i].Y() < vertices[miny].Y())
+				{
+					miny = i;
+				}
+				if (vertices[i].Z() > vertices[maxz].Z())
+				{
+					maxz = i;
+				}
+				if (vertices[i].Z() < vertices[minz].Z())
+				{
+					minz = i;
+				}
 			}
-			if(vertices[i].X() < vertices[minx].X())
+
+			T dist2x = (vertices[maxx] - vertices[minx]).dotProduct(vertices[maxx] - vertices[minx]);
+			T dist2y = (vertices[maxy] - vertices[miny]).dotProduct(vertices[maxy] - vertices[miny]);
+			T dist2z = (vertices[maxz] - vertices[minz]).dotProduct(vertices[maxz] - vertices[minz]);
+
+			size_t min = minx;
+			size_t max = maxx;
+
+			if (dist2y > dist2x && dist2y > dist2z)
 			{
-				minx = i;
+				max = maxy;
+				min = miny;
 			}
-			if(vertices[i].Y() > vertices[maxy].Y())
+			if (dist2z > dist2x && dist2z > dist2y)
 			{
-				maxy = i;
+				max = maxz;
+				min = minz;
 			}
-			if(vertices[i].Y() < vertices[miny].Y())
-			{
-				miny = i;
-			}
-			if(vertices[i].Z() > vertices[maxz].Z())
-			{
-				maxz = i;
-			}
-			if(vertices[i].Z() < vertices[minz].Z())
-			{
-				minz = i;
-			}
+			return aabbox3<T>(vertices[min], vertices[max]);
 		}
-
-		T dist2x = (vertices[maxx] - vertices[minx]).dotProduct(vertices[maxx] - vertices[minx]);
-		T dist2y = (vertices[maxy] - vertices[miny]).dotProduct(vertices[maxy] - vertices[miny]);
-		T dist2z = (vertices[maxz] - vertices[minz]).dotProduct(vertices[maxz] - vertices[minz]);
-
-		size_t min = minx;
-		size_t max = maxx;
-
-		if(dist2y > dist2x && dist2y > dist2z)
+		else
 		{
-			max = maxy;
-			min = miny;
+			return aabbox3<T>(vertices, size);
 		}
-		if(dist2z > dist2x && dist2z > dist2y)
-		{
-			max = maxz;
-			min = minz;
-		}
-		return aabbox3<T>(vertices[min], vertices[max]);
 	}
 	const Vector3<T>& getMin() const
 	{
@@ -523,10 +582,11 @@ public:
 	}
 	void setPosition(const Vector3<pfd>& pos)
 	{
-		Vector3<pfd> relMinEdge = getCenter() - _minEdge;
-		Vector3<pfd> relMaxEdge = getCenter() - _maxEdge;
-		_minEdge = relMinEdge;
-		_maxEdge = relMaxEdge;
+		Vector3<T> center = getCenter();
+		Vector3<T> relMinEdge = _minEdge - center;
+		Vector3<T> relMaxEdge = _maxEdge - center;
+		_minEdge = relMinEdge + pos;
+		_maxEdge = relMaxEdge + pos;
 	}
 protected:
 	Vector3<T> _minEdge;

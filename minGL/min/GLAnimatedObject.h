@@ -39,13 +39,14 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "GLObject.h"
 class MD5Model;
 #include "MD5Model.h"
+#include <vector>
 class GLAnimatedObject : public GLObject
 {
 public:
 	GLAnimatedObject(OpenGLContext& context);
 	virtual ~GLAnimatedObject();
 	virtual void createObject(GLenum renderType);
-	static GLObject** loadModel(OpenGLContext& glContext, MD5Model& model, size_t& n);
+	static std::vector<GLObject*> loadModel(OpenGLContext& glContext, MD5Model& model);
 protected:
 	GLuint _vbBoneWeightId;
 	GLuint _vbBoneIndexId;

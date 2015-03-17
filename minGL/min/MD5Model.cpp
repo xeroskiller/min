@@ -87,7 +87,10 @@ bool MD5Model::LoadModel(const std::string& filename)
 			 if(param == "MD5Version")
 			 {
 				 s >> _md5Version;
-				 assert(_md5Version == 10);
+				 if (_md5Version != 10)
+				 {
+					 return false;
+				 }
 			 }
 			 else if( param == "commandline")
 			 {
@@ -220,8 +223,10 @@ bool MD5Model::LoadModel(const std::string& filename)
 			 }
 
 		 } // while
-		 assert(_jointBuffer.size() == _numJoints);
-		 assert(_meshList.size() == _numMeshes);
+		 if (_jointBuffer.size() != _numJoints || _meshList.size() != _numMeshes)
+		 {
+			 return false;
+		 }
 		 _loaded = true;
 		 return true;
 	 }
@@ -277,7 +282,11 @@ void MD5Model::PrepareMesh(Mesh& mesh)
 		const size_t weightCount = vw.weightCount;
 		for(size_t j=0; j < weightCount; j++)
 		{
-			assert(j < 4); //max weights per vertex
+			//max weights per vertex == 4
+			if (j >= 4)
+			{
+				fatal_error(_glContext, L"MD5Model Error", L"Maximum weight per vertex constraint surpassed, a vertex with more than 4 weights detected.");
+			}
 
 			Mesh::Weight& weight = mesh._weights[vw.startWeight + j];
 			Joint& joint = _jointBuffer[weight._jointID];
@@ -398,7 +407,10 @@ void MD5Model::BuildBindPose( const std::vector<Joint>& joints )
 
 		Matrix invBoneMatrix(boneMatrix);
 		bool test = invBoneMatrix.Inverse();
-		assert(test);
+		if (!test)
+		{
+			fatal_error(_glContext, L"MD5Model Error", L"Matrix Inverse not found when calculating the Inverse Bone Matrix.");
+		}
 		_bindPose.push_back(boneMatrix);
 		_InverseBindPose.push_back(invBoneMatrix);
 	}

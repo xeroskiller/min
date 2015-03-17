@@ -50,6 +50,7 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include <sstream>
 #include <vector>
 #include "minutils.h"
+#include "Geometry.h"
 
 GLObject::GLObject(OpenGLContext& glContext)
 {
@@ -74,11 +75,10 @@ GLObject::GLObject(OpenGLContext& glContext)
 	_indexSize = 0;
 	_renderType = GL_TRIANGLES;
 	_created = false;
-	_drawCount = 1;
 	_octree = 0;
 	_octreeDepth = 0;
 	_isOctree = false;
-
+	_drawManager = 0;
 	for(size_t i=0; i < MAX_TEXTURE; i++)
 	{
 		_isTexture[i] = false;
@@ -90,6 +90,8 @@ GLObject::GLObject(OpenGLContext& glContext)
 
 GLObject::~GLObject()
 {
+	if (_drawManager)
+		delete _drawManager;
 	if(_mesh)
 		delete _mesh;
 	if(_material)
@@ -160,17 +162,16 @@ void  GLObject::createObject(GLenum renderType)
 {
 	if(!_created)
 	{
+		check_glError(_glContext, L"OpenGL error", L"Error: GLError found on entry to GLObject::createObject.");
 		_renderType = renderType;
-
-		GLenum ErrorCheckValue = glGetError();
-		assert(ErrorCheckValue == 0);
-
+		
 		glGenVertexArrays(1, &_vaoId);
 		glBindVertexArray(_vaoId);
 		size_t vertSize = _mesh->_vertices.size();
 		if(vertSize > 0)
 		{
 			size_t indexSize = _mesh->_indices.size();
+			aabbox3<pfd> box(&_mesh->_vertices[0], vertSize);
 			if(_isOctree && indexSize > 0)
 			{
 				const GLIndex* indices;
@@ -191,33 +192,10 @@ void  GLObject::createObject(GLenum renderType)
 				}
 				
 				_octree = new Octree<GLIndex, pfd>(&_mesh->_vertices, &_triangleBuffer, _octreeDepth);
-				
-				if( OctreeSize == 0)
-				{
-					_frustumSphere[0] = new bsphere<pfd>(&_mesh->_vertices[0], vertSize);
-				}
-
-				aabbox3<pfd> box(&_mesh->_vertices[0], vertSize);
-
 				_octree->createOctree(box.getCenter(), box.getExtent());
-
-				if(OctreeSize == 0)
-				{
-					_mesh->_indices.clear();
-					size_t start = 0;
-					for(size_t i=0; i < 8; i++)
-					{
-						_octreeStart[i] = start;
-						_frustumSphere[i + 1] = _octree->sphereFromQuadrant(i, &_mesh->_indices);
-						start += _mesh->_indices.size() - start;
-					}
-					_octreeStart[8] = start;
-				}
+				_drawManager = new DrawManager(_octree);
 			}
-			else
-			{
-				_frustumSphere[0] = new bsphere<pfd>(&_mesh->_vertices[0], vertSize);
-			}
+			_frustumSphere = bsphere<pfd>(box);
 
 			_vertSize = vertSize;
 			_indexSize = indexSize;
@@ -356,8 +334,8 @@ void  GLObject::createObject(GLenum renderType)
 bool GLObject::loadTexture(const std::string& texturePath)
 {
 	Texture* texture = new Texture;
-	bool test = texture->LoadTexture(texturePath);
-	if(test)
+	bool loaded = texture->LoadTexture(texturePath);
+	if(loaded)
 	{
 		_material->SetTexture(texture, _currentTexture);
 		_currentTexture++;
@@ -366,47 +344,99 @@ bool GLObject::loadTexture(const std::string& texturePath)
 	{
 		delete texture;
 	}
-	return test;
+	return loaded;
 }
-
-GLObject** GLObject::loadModel(OpenGLContext& glContext, OBJModel& model, size_t& n)
+//loads OBJModel and returns GLObject vector
+std::vector<GLObject*> GLObject::loadModel(OpenGLContext& glContext, OBJModel& model)
 {
+	std::vector<GLObject*> list;
 	if(model.isLoaded())
 	{
 		 const size_t meshCount = model.getMeshCount();
 		 if(meshCount > 0)
 		 {
-			 GLObject** glObjArray = new GLObject*[meshCount];
-			 n = meshCount;
+			 GLObject* temp = 0;
 			 for(size_t i=0; i < meshCount; i++)
 			 {
-				 glObjArray[i] = new GLObject(glContext);
-				 glContext.smgr->addGLObject( glObjArray[i]);
-				 Mesh& mesh = model.getMesh(i);
-				 glObjArray[i]->setMesh(model.getMesh(i));
+				 temp = new GLObject(glContext);
+				 list.push_back(temp);
+				 glContext.smgr->addGLObject(temp);
+				 Mesh* mesh = model.getMesh(i);
+				 temp->setMesh(*mesh);
 			 }
-			 return glObjArray;
+			 return list;
 		 }
 		 else
 		 {
-			 return 0;
+			 return list;
 		 }
 	}
 	else
 	{
-		return 0;
+		return list;
+	}
+}
+//creates additional GLObject's representing boundingAABB and drawOctree: increases the list size and returns the new list
+std::vector<GLObject*> GLObject::enableDrawLines(OpenGLContext* glContext, std::vector<GLObject*>& list, const bool drawAABB, const bool drawOctree)
+{
+	//n is number of original meshes
+	size_t n=0;
+	if (drawAABB && drawOctree)
+	{
+		n = list.size();
+	}
+	else if (!drawAABB || !drawOctree)
+	{
+		n = list.size();
+	}
+	if (n != 0)
+	{
+		std::vector<GLObject*> new_list;
+		size_t vertexSize;
+		Mesh* mesh = 0;
+		GLObject* master = 0;
+		for (size_t i = 0; i < n;)
+		{
+			master = list[i];
+			new_list.push_back(master);
+			mesh = master->getMesh();
+			i++;
+			if (mesh)
+			{
+				vertexSize = mesh->_vertices.size();
+				if (vertexSize > 0)
+				{
+					if (drawAABB)
+					{
+						aabbox3<pfd> box(&mesh->_vertices[0], vertexSize);
+						new_list.push_back(Geometry::CreateBox(glContext->smgr, box, 0));
+					}
+					if (drawOctree && master->_octree != 0)
+					{
+						std::vector<aabbox3<pfd>> box_list = master->_octree->getBoxes(0);
+						size_t boxes = box_list.size();
+						new_list.push_back(Geometry::CreateBoxes(glContext->smgr, box_list, 0));
+					}
+				}
+			}
+		}
+		return new_list;
+	}
+	else
+	{
+		return list;
 	}
 }
 
 //overwrite must equal true for now
-bool GLObject::saveYageObj(const std::string& absFilePath, bool overwrite)
+bool GLObject::saveMinObj(const std::string& absFilePath, bool overwrite)
 {
 	if(_mesh == 0)
 		return false;
 	else
 	{
 		DataFile::Datafile file(absFilePath, overwrite);
-		size_t loc, header, vertex, uv, normal, tangent, bitangent, index, octree, sphere, start; 
+		size_t loc, header, vertex, uv, normal, tangent, bitangent, index, octree;
 		DataFile::DatabaseTable* table = 0;
 		if(file.is_open())
 		{
@@ -431,12 +461,12 @@ bool GLObject::saveYageObj(const std::string& absFilePath, bool overwrite)
 					ptr_header->Add("Bitangent", 4);
 				if(_mesh->_indices.size() > 0)
 					ptr_header->Add("Index", 5);
-				if (_isOctree > 0)
+				if (_isOctree)
 					ptr_header->Add("Octree", 6);
 			}
 			if(table != 0)
 			{
-				table->setName("YageObj");
+				table->setName("MinObj");
 				const size_t vertSize = _mesh->_vertices.size();
 				if(vertSize > 0)
 				{
@@ -588,48 +618,6 @@ bool GLObject::saveYageObj(const std::string& absFilePath, bool overwrite)
 					{
 						ptr_octree->Add(static_cast<unsigned long>(indices[i]), i);
 					}
-
-					if(precision == GL_FLOAT)
-					{
-						sphere = table->Add(DataFile::DatabaseTable::FLOAT);
-						DataFile::FloatContainer* ptr_sphere = static_cast<DataFile::FloatContainer*>(table->GetDatabaseContainer(sphere));
-						for(size_t i=0; i < 9; i++)
-						{
-							const bsphere<pfd>* sp = _frustumSphere[i];
-							if(sp != 0)
-							{
-								Vector3<pfd> center = sp->getCenter();
-								ptr_sphere->Add(center._arr[0], i);
-								ptr_sphere->Add(center._arr[1], i);
-								ptr_sphere->Add(center._arr[2], i);
-								ptr_sphere->Add(sp->getRadius(), i);
-							}
-						}
-					}
-					else
-					{
-						sphere = table->Add(DataFile::DatabaseTable::DOUBLE);
-						DataFile::DoubleContainer* ptr_sphere = static_cast<DataFile::DoubleContainer*>(table->GetDatabaseContainer(sphere));
-						for(size_t i=0; i < 9; i++)
-						{
-							const bsphere<pfd>* sp = _frustumSphere[i];
-							if(sp != 0)
-							{
-								Vector3<pfd> center = sp->getCenter();
-								ptr_sphere->Add(center._arr[0], i);
-								ptr_sphere->Add(center._arr[1], i);
-								ptr_sphere->Add(center._arr[2], i);
-								ptr_sphere->Add(sp->getRadius(), i);
-							}
-						}
-					}
-
-					start = table->Add(DataFile::DatabaseTable::UINT);
-					ptr_octree = static_cast<DataFile::UIntContainer*>(table->GetDatabaseContainer(start));
-					for(size_t i=0; i < 9; i++)
-					{
-						ptr_octree->Add(static_cast<unsigned long>(_octreeStart[i]), i);
-					}
 				}
 				if(!file.Save())
 				{
@@ -647,7 +635,7 @@ bool GLObject::saveYageObj(const std::string& absFilePath, bool overwrite)
 	}
 }
 
-bool GLObject::loadYageObj(const std::string& absFilePath)
+bool GLObject::loadMinObj(const std::string& absFilePath)
 {
 	if(_created)
 		return false;
@@ -873,53 +861,6 @@ bool GLObject::loadYageObj(const std::string& absFilePath)
 					else
 						return false;
 				}
-
-				{
-					DataFile::DatabaseContainerBase* ptr = table->GetDatabaseContainer(8);
-					if(!ptr)
-						return false;
-					DataFile::DatabaseTable::DatabaseTableEnum data_enum = ptr->GetType();
-					if( data_enum == DataFile::DatabaseTable::DOUBLE)
-					{
-						DataFile::DoubleContainer* ptr_dbl = static_cast<DataFile::DoubleContainer*>(ptr);
-						size_t count = 0;
-						for(size_t i=0; i < ptr_dbl->Length(); i+=4)
-						{
-							_frustumSphere[count] = new bsphere<pfd>(Vector3<pfd>(static_cast<pfd>((*ptr_dbl)[i]), static_cast<pfd>((*ptr_dbl)[i + 1]), static_cast<pfd>((*ptr_dbl)[i + 2])), static_cast<pfd>((*ptr_dbl)[i + 3]));
-							count++;
-						}
-					}
-					else if(data_enum == DataFile::DatabaseTable::FLOAT)
-					{
-						DataFile::FloatContainer* ptr_dbl = static_cast<DataFile::FloatContainer*>(ptr);
-						size_t count = 0;
-						for(size_t i=0; i < ptr_dbl->Length(); i+=4)
-						{
-							_frustumSphere[count] = new bsphere<pfd>(Vector3<pfd>(static_cast<pfd>((*ptr_dbl)[i]), static_cast<pfd>((*ptr_dbl)[i + 1]), static_cast<pfd>((*ptr_dbl)[i + 2])), static_cast<pfd>((*ptr_dbl)[i + 3]));
-							count++;
-						}
-					}
-					else
-						return false;
-				}
-
-				{
-					DataFile::DatabaseContainerBase* ptr = table->GetDatabaseContainer(9);
-					if(!ptr)
-						return false;
-					DataFile::DatabaseTable::DatabaseTableEnum data_enum = ptr->GetType();
-					if( data_enum == DataFile::DatabaseTable::UINT)
-					{
-						DataFile::UIntContainer* ptr_dbl = static_cast<DataFile::UIntContainer*>(ptr);
-						size_t frustumCount = ptr_dbl->Length();
-						for(size_t i=0; i < frustumCount; i++)
-						{
-							_octreeStart[i] = static_cast<GLsizei>((*ptr_dbl)[i]);
-						}
-					}
-					else
-						return false;
-				}
 			}
 			return true;
 		}
@@ -957,54 +898,6 @@ GLuint GLObject::getVaoId()
 GLenum GLObject::getRenderType()
 {
 	return _renderType;
-}
-
-size_t GLObject::getDrawCount()
-{
-	if(_isOctree)
-	{
-		return 8;
-	}
-	else
-	{
-		return 1;
-	}
-}
-
-GLsizei GLObject::getIndexCount(size_t n)
-{
-	if (_isOctree)
-	{
-		return _octreeStart[n + 1] - _octreeStart[n];
-	}
-	else
-	{
-		return _indexSize;
-	}
-}
-
-GLsizei GLObject::getVertexCount(size_t n)
-{
-	if(_isOctree)
-	{
-		return _octreeStart[n + 1] - _octreeStart[n];
-	}
-	else
-	{
-		return _vertSize;
-	}
-}
-
-GLsizei GLObject::getStart(size_t n)
-{
-	if(_isOctree)
-	{
-		return _octreeStart[n];
-	}
-	else
-	{
-		return 0;
-	}
 }
 
 bool GLObject::isCreated()
@@ -1049,8 +942,14 @@ bool GLObject::isIndex()
 
 bool GLObject::isTexture(size_t n)
 {
-	assert(n < MAX_TEXTURE);
-	return _isTexture[n];
+	if (n < MAX_TEXTURE)
+	{
+		return _isTexture[n];
+	}
+	else
+	{
+		return false;
+	}
 }
 
 glLocationManager* GLObject::getGLLocManager()
@@ -1067,4 +966,54 @@ void GLObject::release()
 {
 	delete _mesh;
 	delete _material;
+}
+
+void GLObject::updateDrawTree(Frustum* frustum, const Vector3<pfd>& worldPos)
+{
+	if (_isOctree)
+	{
+		std::vector<OctreeNode<GLIndex, pfd>*> list = _octree->testFrustumIntersection(0, worldPos, frustum);
+		_drawManager->update(&list);
+	}
+}
+
+size_t GLObject::getDrawCount()
+{
+	if (_isOctree)
+	{
+		return _drawManager->getDrawCount();
+	}
+	else
+	{
+		return 1;
+	}
+}
+
+GLsizei GLObject::getIndexCount(size_t n)
+{
+	if (_isOctree)
+	{
+		return _drawManager->getIndexCount(n);
+	}
+	else
+	{
+		return _indexSize;
+	}
+}
+
+GLsizei GLObject::getVertexCount(size_t n)
+{
+	return _vertSize;
+}
+
+GLsizei GLObject::getStart(size_t n)
+{
+	if (_isOctree)
+	{
+		return _drawManager->getStart(n);
+	}
+	else
+	{
+		return 0;
+	}
 }

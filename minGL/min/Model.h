@@ -37,7 +37,7 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #define __MODEL__
 
 #include "Mesh.h"
-
+#include <cassert>
 class Model
 {
 public:
@@ -51,10 +51,16 @@ public:
 	{
 		return _meshList.size();
 	}
-	Mesh& getMesh(size_t n)
+	Mesh* getMesh(size_t n)
 	{
-		assert( n < _meshList.size());
-		return *_meshList[n];
+		if (n < _meshList.size())
+		{
+			return _meshList[n];
+		}
+		else
+		{
+			return 0;
+		}
 	}
 	void CalculateNormals();
 	void CalculateTangents();

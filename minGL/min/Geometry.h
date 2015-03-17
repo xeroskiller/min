@@ -42,12 +42,17 @@ class GLObject;
 #include "OpenGLContext.h"
 #include "Vector3.h"
 #include "Vector4.h"
+#include "aabbox3.h"
+#include <vector>
 class Geometry
 {
 public:
 	Geometry();
 	~Geometry();
 	static GLObject* CreateCube(SceneManager* smgr, Vector4<pfd> color[]);
+	static GLObject* CreateBox(SceneManager* smgr, const aabbox3<pfd>& box, Vector4<pfd> color[]);
+	static GLObject* Geometry::CreateBoxOutline(SceneManager* smgr, const aabbox3<pfd>& box, Vector4<pfd> color[]);
+	static GLObject* CreateBoxes(SceneManager* smgr, std::vector<aabbox3<pfd>>& boxes, Vector4<pfd> color[]);
 	static GLObject* CreateTriangularPrism(SceneManager* smgr, Vector4<pfd> color[]);
 	static GLObject* CreateRightTriangularPrism(SceneManager* smgr, Vector4<pfd> color[]);
 protected:

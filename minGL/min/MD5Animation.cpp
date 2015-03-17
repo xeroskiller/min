@@ -77,7 +77,10 @@ bool MD5Animation::LoadAnimation(const std::string& filename)
 			 else if(param == "MD5Version")
 			 {
 				 s >> _md5Version;
-				 assert(_md5Version == 10);
+				 if (_md5Version != 10)
+				 {
+					 return false;
+				 }
 			 }
 			 else if(param == "commandline")
 			 {
@@ -184,12 +187,10 @@ bool MD5Animation::LoadAnimation(const std::string& filename)
 		 _animDuration = (_frameDuration * (pfd)_numFrames);
 		 _animTime = (pfd)0.0;
 
-		 assert(_jointInfoList.size() == _numJoints);
-		 assert(_boundList.size() == _numFrames);
-		 assert(_baseFrameList.size() == _numJoints);
-		 assert(_frameDataList.size() == _numFrames);
-		 assert(_skeletonList.size() == _numFrames);
-
+		 if (_jointInfoList.size() != _numJoints || _boundList.size() != _numFrames || _baseFrameList.size() != _numJoints || _frameDataList.size() != _numFrames || _skeletonList.size() != _numFrames)
+		 {
+			 return false;
+		 }
 		 return true;
 	 }
 	 else

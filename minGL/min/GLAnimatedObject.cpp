@@ -80,11 +80,10 @@ GLAnimatedObject::~GLAnimatedObject()
 
  void GLAnimatedObject::createObject(GLenum renderType)
  {
+	 check_glError(_glContext, L"OpenGL error", L"Error: GLError found on entry to GLAnimatedObject::createObject.");
 	 GLObject::createObject(renderType);
-	 // add animated parts
-	 GLenum ErrorCheckValue = glGetError();
-	 assert(ErrorCheckValue == 0);
 
+	 // add animated parts
 	 glBindVertexArray(_vaoId);
 	 const size_t boneWeightSize = _mesh->_boneweights.size();
 	 if(boneWeightSize > 0)
@@ -116,22 +115,21 @@ GLAnimatedObject::~GLAnimatedObject()
 	check_glError(_glContext, L"OpenGL error", L"Error: Could not create animated object.");
  }
 
- GLObject** GLAnimatedObject::loadModel(OpenGLContext& glContext, MD5Model& model, size_t& n)
+ std::vector<GLObject*> GLAnimatedObject::loadModel(OpenGLContext& glContext, MD5Model& model)
  {
+	 std::vector<GLObject*> list;
+	 GLAnimatedObject*  glAnimObj = 0;
 	 if(model.isLoaded())
 	 {
-		 const size_t meshCount = model.getMeshCount();
-		 GLObject** glAnimObjArray = new GLObject*[meshCount];
-		 n = meshCount;
-		 for(size_t i=0; i < meshCount; i++)
+		 const size_t n = model.getMeshCount();
+		 for(size_t i=0; i < n; i++)
 		 {
-			 glAnimObjArray[i] = new GLAnimatedObject(glContext);
-			 glContext.smgr->addGLObject(glAnimObjArray[i]);
-			 Mesh& mesh = model.getMesh(i);
-			 glAnimObjArray[i]->setMesh(model.getMesh(i));
+			 glAnimObj = new GLAnimatedObject(glContext);
+			 glContext.smgr->addGLObject(glAnimObj);
+			 Mesh* mesh = model.getMesh(i);
+			 glAnimObj->setMesh(*mesh);
+			 list.push_back(glAnimObj);
 		 }
-		 return glAnimObjArray;
 	 }
-	 else
-		 return 0;
+	 return list;
  }

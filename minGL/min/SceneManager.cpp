@@ -262,8 +262,7 @@ void SceneManager::drawObjects()
 			current = (*k);
 			for(size_t i=0; i < current->_numGLObjects; i++)
 			{
-				bsphere<pfd> sphere = current->getFrustumSphere(i);
-				if(frustum->isSphereInFrustum(sphere))
+				if (current->testFrustumIntersection(i, frustum))
 				{
 					GLObject& glCurrent = (*k)->getGLObject(i);
 					glBindVertexArray(glCurrent.getVaoId());
@@ -279,26 +278,25 @@ void SceneManager::drawObjects()
 					}
 					if(glCurrent.isIndex())
 					{
+						glCurrent.updateDrawTree(frustum, current->getPosition());
 						size_t drawCalls = glCurrent.getDrawCount();
  						if(drawCalls > 1)
 						{
-							for(size_t i=0; i < drawCalls; i++)
+   							for(size_t i=0; i < drawCalls; i++)
 							{
-								const bsphere<pfd>* sphere = glCurrent.getFrustumSphere(i);
-								if(sphere != 0)
+								GLsizei indexCount = glCurrent.getIndexCount(i);
+								if(indexCount > 0)
 								{
-									if(frustum->isSphereInFrustum(*sphere))
-									{
-										GLsizei start = sizeof(GLIndex)*glCurrent.getStart(i);
-										glDrawElements(glCurrent.getRenderType(), glCurrent.getIndexCount(i), GL_UNSIGNED_SHORT, BUFFER_OFFSET(start));
-									}
+									GLsizei start = glCurrent.getStart(i);
+									glDrawElements(glCurrent.getRenderType(), indexCount, GL_UNSIGNED_SHORT, BUFFER_OFFSET(start*sizeof(GLIndex))); //buffer_offset is in bytes!
 								}
 							}
 						}
-						else
+						else if(drawCalls == 1)
 						{
-							GLsizei start = sizeof(GLIndex)*glCurrent.getStart(0);
-							glDrawElements(glCurrent.getRenderType(), glCurrent.getIndexCount(0), GL_UNSIGNED_SHORT, BUFFER_OFFSET(start));
+							GLsizei start = glCurrent.getStart(0);
+							GLsizei indexCount = glCurrent.getIndexCount(0);
+							glDrawElements(glCurrent.getRenderType(), indexCount, GL_UNSIGNED_SHORT, BUFFER_OFFSET(start*sizeof(GLIndex)));
 						}
 					}
 					else

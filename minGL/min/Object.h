@@ -49,12 +49,13 @@ template <class T> class aabbox3;
 #include "bsphere.h"
 #include <string>
 #include <deque>
+#include <vector>
 class Object
 {
 public:
 	friend class SceneManager;
 	virtual ~Object(void);
-	virtual void createObject(GLObject** glObject, size_t n);
+	virtual void createObject(std::vector<GLObject*>& glObjList);
 	void rotateObj(const Quaternion<pfd>& q);
 	virtual void setRotation(const Quaternion<pfd>& q);
 	virtual void setPosition(const Vector3<pfd>& pos);
@@ -75,15 +76,14 @@ public:
 	size_t getObjectIndex();
 	void setTimeToLive(size_t seconds);
 	GLObject& getGLObject(size_t n);
-	const bsphere<pfd>& getFrustumSphere(size_t n);
 	bool isUpdated();
+	bool testFrustumIntersection(size_t n, Frustum* frustum);
+	void updateDrawTree(Frustum* frustum, const Vector3<pfd>& worldPos);
 protected:
 	Object(OpenGLContext&);
 	OpenGLContext* _glContext;
-	GLObject** _glObjects;
+	std::vector<GLObject*> _glObjects;
 	size_t _numGLObjects;
-	bsphere<pfd>** _frustumSphere;
-
 	Matrix _mat;
 	Quaternion<pfd> _rotation;
 	Vector3<pfd> _position;
@@ -92,12 +92,12 @@ protected:
 	double _time_to_live;
 	double _reference_time;
 	Vector3<pfd> _material_property;
-	
 	GLuint _progId;
 	size_t _programIndex;
 	size_t _objectIndex;
-
 	bool _isUpdated;
+	bsphere<pfd>* _bSphere;
+
 };
 
 #endif

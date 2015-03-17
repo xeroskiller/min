@@ -47,7 +47,7 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #define IDM_EXIT				105
 #define IDI_OPENGL			107
 #define IDI_SMALL				108
-#define IDC_YAGEEDIT			109
+#define IDC_MIN			109
 #define IDC_MYICON				2
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1

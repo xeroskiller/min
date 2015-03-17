@@ -84,6 +84,13 @@ public:
 
 		_type = SPHERE;
 	}
+	bsphere(const aabbox3<T>& box)
+	{
+		_center = box.getCenter();
+		_radius = (box._maxEdge - _center).dotProduct(box._maxEdge - _center);
+		_radius = sqrt(_radius);
+		_type = SPHERE;
+	}
 	void add(Vector3<T>* vertices, size_t size)
 	{
 		for(size_t i=0; i<size; i++)

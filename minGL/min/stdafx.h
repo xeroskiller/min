@@ -62,7 +62,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "glew.h"     //GL extensions
 #include "wglew.h"   //WGL extensions
 #include <gl\GL.h>
-#include <cassert>
 typedef GLfloat pfd;
 const int precision = GL_FLOAT;
 typedef GLushort GLIndex;

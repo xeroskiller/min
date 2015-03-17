@@ -48,32 +48,37 @@ template <class T> class bsphere;
 #include "bsphere.h"
 template <class T> class Vector4;
 #include "Vector4.h"
-
 #include <list>	
 #include <vector>
 
+//tree node class
 template <class T, class K> class OctreeNode
 {
 	template <class T, class K> friend class Octree;
 	OctreeNode()
 	{
+		isLeaf = false;
 		for(size_t i=0; i<8; i++)
 		{
 			_child[i] = 0;
 		}
 	}
-	
+	//center of node
 	Vector3<K> _center;
+	//halfwidth of node
 	Vector3<K> _halfWidth;
+	//children node list
 	OctreeNode<T, K>* _child[8];
-	std::vector<Vertex<T>*> _objList;
+	//list of vertices contained in node
+	std::vector<Vertex<T>*> _vertexNodeList;
+	bool isLeaf;
 };
 
 template <class T, class K> class Octree
 {
 public:
 	typedef void (*OctreeCallback)(void * p); 
-
+	//init's data and copies the vertex pointers out of triangle buffer
 	Octree::Octree(std::vector<Vector4<K>>* points, std::vector<Triangle<T>>* triangles, size_t maxDepth)
 	{
 		std::vector<Triangle<T>>::iterator k = triangles->begin();
@@ -89,10 +94,12 @@ public:
 		_root = 0;
 		_depth = maxDepth;
 	}
+	//destroys octree
 	Octree::~Octree()
 	{
 		Octree::Delete(_root);
 	}
+	//creates the tree structure: tree structure will not rotate since it is an AABB-fix this
 	void createOctree(const Vector3<K>& center, const Vector3<K>& extent)
 	{
 		_root = new OctreeNode<T, K>;
@@ -101,213 +108,88 @@ public:
 
 		buildOctree(_root, &_vertexList, _depth);
 	}
-	std::vector<Vertex<T>*> testFrustumIntersection(OctreeNode<T, K>* node, Frustum* frustum)
+	//return list of OctreeNodes that interesect frustum
+	std::vector<OctreeNode<T, K>*> testFrustumIntersection(OctreeNode<T, K>* node, const Vector3<K>& worldPos, Frustum* frustum)
 	{
 		if(node == 0)
 		{
-			return testFrustumIntersection(_root, frustum);
+			return testFrustumIntersection(_root, worldPos, frustum);
 		}
 
-		std::vector<Vertex<T>*> list;
+		std::vector<OctreeNode<T, K>*> list;
 		
+		if (frustum == 0)
+			return list;
+
 		for(size_t i=0; i < 8; i++)
 		{
-			std::vector<Vertex<T>*> childList;
+			std::vector<OctreeNode<T, K>*> childList;
 			if(node->_child[i])
 			{
-				childList = testFrustumIntersection(node->_child[i], frustum);
+				childList = testFrustumIntersection(node->_child[i], worldPos, frustum);
+				list.insert(list.end(), childList.begin(), childList.end());
+			}
+		}
+		if (node->isLeaf)
+		{
+			Vector3<K> min = node->_center - node->_halfWidth + worldPos;
+			Vector3<K> max = node->_center + node->_halfWidth + worldPos;
+			if (frustum->isAABBInFrustum(aabbox3<K>(min, max)) && node->_vertexNodeList.size() > 0)
+			{
+				list.push_back(node);
+			}
+ 		}
+		return list;
+	}
+	//this function performs getList on a nodeList and then returns the triangles in sorted order: the original order provided to the Octree on Octree::createOctree() in a hash function you need to prune out the missing triangle by check the pointing against null
+	void sortedGetList(std::vector<OctreeNode<T, K>*>* nodeList, std::vector<Triangle<T>*>& _stack)
+	{
+		_stack = std::vector<Triangle<T>*>(_vertexList.size() / 3, 0);
+		std::vector<Vertex<T>*> list;
+		for (size_t i = 0; i < nodeList->size();i++)
+		{
+			if ((*nodeList)[i] != 0)
+			{
+				list = getList((*nodeList)[i]);
 			}
 			else
 			{
-				std::vector<Vertex<T>*>::iterator k = node->_objList.begin();
-				std::vector<Vertex<T>*>::iterator end = node->_objList.end();
-				for(; k!= end; k++)
+				return;
+			}
+
+			std::vector<Vertex<T>*>::iterator k = list.begin();
+			std::vector<Vertex<T>*>::iterator end = list.end();
+
+			//this sorts the triangles using a simple hash function; id is in multiples of 3: see GLObject::createObject()
+
+			for (; k != end; k++)
+			{
+				Triangle<T>* triangle = (*k)->getTriangle();
+				T id = triangle->getId();
+				if (_stack[id / 3] == 0)
 				{
-					if(frustum->isPointInFrustum(_pointBuffer[(*k).getIndex()]))
-					{
-						list.push_back(*k);
-					}
+					_stack[id / 3] = triangle;
 				}
 			}
-			std::vector<Vertex<T>*>::iterator k = childList.begin();
-			for(;k != childList.end(); k++)
-			{
-				list.push_back(*k);
-			}
-		}
-		return list;
-	}
-	std::vector<Vertex<T>*> testAABBIntersection(OctreeNode<T, K>* node, const aabbox3<K>& box)
-	{
-		if(node == 0)
-		{
-			return testAABBIntersection(_root, frustum);
-		}
-
-		std::vector<Vertex<T>*> list;
-		
-		for(size_t i=0; i < 8; i++)
-		{
-			std::vector<Vertex<T>*> childList;
-			if(node->_child[i])
-			{
-				childList = testAABBIntersection(node->_child[i], box);
-			}
-			else
-			{
-				std::vector<Vertex<T>*>::iterator k = node->_objList.begin();
-				std::vector<Vertex<T>*>::iterator end = node->_objList.end();
-				for(; k!= end; k++)
-				{
-					if(box.isPointInside(_pointBuffer[(*k).getIndex()]))
-					{
-						list.push_back(*k);
-					}
-				}
-			}
-			std::vector<Vertex<T>*>::iterator k = childList.begin();
-			for(;k != childList.end(); k++)
-			{
-				list.push_back(*k);
-			}
-		}
-		return list;
-	}
-	std::vector<Vertex<T>*> testSphereIntersection(OctreeNode<T, K>* node, const bsphere<K>& sp)
-	{
-		if(node == 0)
-		{
-			return testSphereIntersection(_root, frustum);
-		}
-
-		std::vector<Vertex<T>*> list;
-		
-		for(size_t i=0; i < 8; i++)
-		{
-			std::vector<Vertex<T>*> childList;
-			if(node->_child[i])
-			{
-				childList = testSphereIntersection(node->_child[i], sp);
-			}
-			else
-			{
-				std::vector<Vertex<T>*>::iterator k = node->_objList.begin();
-				std::vector<Vertex<T>*>::iterator end = node->_objList.end();
-				for(; k!= end; k++)
-				{
-					if(sp.isPointInside(_pointBuffer[(*k).getIndex()]))
-					{
-						list.push_back(*k);
-					}
-				}
-			}
-			std::vector<Vertex<T>*>::iterator k = childList.begin();
-			for(;k != childList.end(); k++)
-			{
-				list.push_back(*k);
-			}
-		}
-		return list;
-	}
-	bsphere<K>* sphereFromQuadrant(size_t n, std::vector<T>* indices)
-	{
-		OctreeNode<T, K>* node = _root->_child[n];
-		std::vector<Vertex<T>*> list;
-
-		if(node != 0)
-		{
-			list = getList(node);
-			if(indices == 0)
-			{
-				return 0;
-			}
-		}
-		else
-		{
-			return 0;
-		}
-
-		std::vector<Vector4<K>> verts;
-
-		std::vector<Vertex<T>*>::iterator k = list.begin();
-		std::vector<Vertex<T>*>::iterator end = list.end();
-
-		std::vector<int> _hash;
-		_hash.resize(_vertexList.size());
-		
-		for(size_t i=0; i<_hash.size(); i++)
-		{
-			_hash[i] = -1;
-		}
-
-		std::vector<Triangle<T>*> _stack;
-		
-		for(; k!= end; k++)
-		{
-			Triangle<T>* triangle = (*k)->getTriangle();
-			int id = static_cast<int>(triangle->getId());
-
-			if(_hash[id] == -1)
-			{
-				_stack.push_back(triangle);
-				_hash[id] = id;
-			}
-		}
-
-		std::vector<Triangle<T>*>::iterator l = _stack.begin();
-		std::vector<Triangle<T>*>::iterator m = _stack.end();
-
-		for(; l!= m; l++)
-		{
-			Triangle<T>* triangle = (*l);
-			Vertex<T> * vertex = triangle->getVertices();
-			T ind0 = vertex[0].getIndex();
-			T ind1 = vertex[1].getIndex();
-			T ind2 = vertex[2].getIndex();
-			indices->push_back(ind0);
-			indices->push_back(ind1);
-			indices->push_back(ind2);
-			verts.push_back((*_pointBuffer)[ind0]);
-			verts.push_back((*_pointBuffer)[ind1]);
-			verts.push_back((*_pointBuffer)[ind2]);
-		}
-
-		if(verts.size() >= 2)
-		{
-			return new bsphere<K>(&verts[0], verts.size());
-		}
-		else
-		{
-			return new bsphere<K>(verts[0], (pfd)1.0);
 		}
 	}
-
-	std::vector<T> saveOctree()
+	//Looks up all the triangle pointers and sorts them into the original index order and returns that set of indices see GLObject::createObject(); original indices may have been deleted with release(); used in Min() file format
+	std::vector<T> saveOctree() 
 	{
 		std::vector<Vertex<T>*> list = getList(_root);
 
 		std::vector<Vertex<T>*>::iterator k = list.begin();
 		std::vector<Vertex<T>*>::iterator end = list.end();
 
-		std::vector<int> _hash;
-		_hash.resize(_vertexList.size());
-		
-		for(size_t i=0; i<_hash.size(); i++)
-		{
-			_hash[i] = -1;
-		}
-
-		std::vector<Triangle<T>*> _stack;
-		
+		//this sorts the triangles using a simple hash function; id is in multiples of 3: see GLObject::createObject()
+		std::vector<Triangle<T>*> _stack(_vertexList.size()/3, 0);
 		for(; k!= end; k++)
 		{
 			Triangle<T>* triangle = (*k)->getTriangle();
-			int id = static_cast<int>(triangle->getId());
-
-			if(_hash[id] == -1)
+			size_t id = triangle->getId();
+			if(_stack[id/3] == 0)
 			{
-				_stack.push_back(triangle);
-				_hash[id] = id;
+				_stack[id/3] = triangle;
 			}
 		}
 
@@ -327,7 +209,35 @@ public:
 
 		return indexList;
 	}
+	std::vector<aabbox3<K>> getBoxes(OctreeNode<T, K>* node)
+	{
+		if (node == 0)
+		{
+			return getBoxes(_root);
+		}
+
+		std::vector<aabbox3<K>> list;
+
+		for (size_t i = 0; i < 8; i++)
+		{
+			std::vector<aabbox3<K>> childList;
+			if (node->_child[i])
+			{
+				childList = getBoxes(node->_child[i]);
+				list.insert(list.end(), childList.begin(), childList.end());
+			}
+		}
+		if (node->isLeaf)
+		{
+			Vector3<K> min = node->_center - node->_halfWidth;
+			Vector3<K> max = node->_center + node->_halfWidth;
+			aabbox3<K> box(min, max);
+			list.push_back(box);
+		}
+		return list;
+	}
 private:
+	//Returns a list of Vertex pointers contained in the leafnodes of a target node
 	std::vector<Vertex<T>*> getList(OctreeNode<T, K>* node)
 	{
 		std::vector<Vertex<T>*> list;
@@ -338,32 +248,30 @@ private:
 			if(node->_child[i])
 			{
 				childList = getList(node->_child[i]);
+				list.insert(list.end(), childList.begin(), childList.end());
 			}
-			else
-			{
-				std::vector<Vertex<T>*>::iterator k = node->_objList.begin();
-				std::vector<Vertex<T>*>::iterator end = node->_objList.end();
-				for(; k!= end; k++)
-				{
-					list.push_back(*k);
-				}
-			}
-			std::vector<Vertex<T>*>::iterator k = childList.begin();
-			for(;k != childList.end(); k++)
+		}
+		if (node->isLeaf)
+		{
+			std::vector<Vertex<T>*>::iterator k = node->_vertexNodeList.begin();
+			std::vector<Vertex<T>*>::iterator end = node->_vertexNodeList.end();
+			for (; k != end; k++)
 			{
 				list.push_back(*k);
 			}
 		}
 		return list;
 	}
+	//Recursively builds the octree via top down architechure
 	void Octree::buildOctree(OctreeNode<T, K>* node, std::vector<Vertex<T>*>* vertexBuffer, size_t currentDepth)
 	{
 		if(currentDepth == -1)
 		{
+			node->isLeaf = true;
 			std::vector<Vertex<T>*>::iterator k = vertexBuffer->begin();
 			for(; k!= vertexBuffer->end(); k++)
 			{
-				node->_objList.push_back(*k);
+				node->_vertexNodeList.push_back(*k);
 			}
 			return;
 		}
@@ -375,7 +283,7 @@ private:
 		std::vector<Vertex<T>*>::iterator k = vertexBuffer->begin();
 		for(; k!= vertexBuffer->end(); k++)
 		{
-			Vector3<K> p = (*_pointBuffer)[(*k)->getIndex()];
+			Vector4<K>& p = (*_pointBuffer)[(*k)->getIndex()];
 
 			int index = 0;
 
@@ -406,6 +314,7 @@ private:
 		}
 		return;
 	}
+	//Recursively deletes the octree nodes
 	void Octree::Delete(OctreeNode<T, K>* node)
 	{
 		for(size_t i=0; i < 8; i++)
@@ -417,10 +326,13 @@ private:
 		}
 		delete node;
 	}
-
+	//depth of tree
 	size_t _depth;
+	//root node pointer
 	OctreeNode<T, K>* _root;
+	//list of Vertex pointers; same order as original input indices
 	std::vector<Vertex<T>*> _vertexList;
+	//original  mesh vertices pointer
 	std::vector<Vector4<K>>* _pointBuffer;
 };
 

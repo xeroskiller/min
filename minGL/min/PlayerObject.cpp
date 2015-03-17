@@ -55,11 +55,11 @@ void PlayerObject::setCameraType(PlayerObjectEnum camType)
 }
 
 //must set camera before creation AND physicsobj stuff
-void PlayerObject::createObject(GLObject** glObject, size_t n)
+void PlayerObject::createObject(std::vector<GLObject*>& glObjects)
 {
-	if(n > 0)
+	if(glObjects.size() > 0)
 	{
-		this->PhysicsObject::createObject(glObject, n);
+		this->PhysicsObject::createObject(glObjects);
 		NewtonBodySetUserData (_body, this);
 	}
 }
@@ -93,14 +93,17 @@ void PlayerObject::setPosition(const Vector3<pfd>& pos)
 		PhysicsObject::setPosition(pos);
 	}
 	//update camera
-	if(_cameraType == THIRD_PERSON)
+	if (_camera != 0)
 	{
-		Vector3<pfd> adjust = _camera->getDir()*((pfd)2.0*_radius);
-		_camera->setPosition(_position + Vector3<pfd>(-adjust.X(), _height/2 + _cameraPadding, -adjust.Z()));
-	}
-	else if(_cameraType == FPS)
-	{
-		_camera->setPosition(_position + Vector3<pfd>(0, _height/2, 0));
+		if (_cameraType == THIRD_PERSON)
+		{
+			Vector3<pfd> adjust = _camera->getDir()*((pfd)2.0*_radius);
+			_camera->setPosition(pos + Vector3<pfd>(-adjust.X(), _height / 2 + _cameraPadding, -adjust.Z()));
+		}
+		else if (_cameraType == FPS)
+		{
+			_camera->setPosition(pos + Vector3<pfd>(0, _height / 2, 0));
+		}
 	}
 }
 
@@ -109,7 +112,7 @@ std::deque<Object*>::iterator PlayerObject::Update(Camera& cam, double ref_time,
 	pfd maxAltitude = _pmgr->getMaxAltitude();
 	if(_position.Y() > maxAltitude)
 	{
-		PhysicsObject::setPosition(Vector3<pfd>(_position.X(), maxAltitude - _padding, _position.Z()));
+		PlayerObject::setPosition(Vector3<pfd>(_position.X(), maxAltitude - _padding, _position.Z()));
 	}
 	
 	return PhysicsObject::Update(cam, ref_time, k);

@@ -39,7 +39,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "stdafx.h"
 #include <WinSock2.h>
 #include <Windows.h>
-#include <cassert>
 
 #ifdef __BUILD_XP__
 

@@ -35,7 +35,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "StdAfx.h"
 #include "Mesh.h"
-#include <cassert>
 
 Mesh::Mesh()
 {

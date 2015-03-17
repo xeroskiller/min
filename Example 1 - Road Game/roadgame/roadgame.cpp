@@ -35,10 +35,13 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 */
 // opengl.cpp : Defines the entry point for the application.
 //
-#define __BUILD_XP__
 #include "stdafx.h"
 #include "min().h"
 #include <string>
+
+//#define LOAD_OBJ_FILEFORMAT
+//#define DRAW_OCTREE
+//#define SAVE_MIN_FORMAT
 
 UIObject* UI_SG = 0;
 GLUIObject* glUI_SG = 0;
@@ -50,7 +53,7 @@ pfd pointer_angle;
 pfd pointer_offset = 40;
 const pfd start_angle = -21.0;
 const Matrix2<pfd> start_rot = Matrix2<pfd>(start_angle);
-const pfd range_angle = 180.0 + (pfd)4.0*abs(start_angle);
+const pfd range_angle = (pfd)180.0 + (pfd)4.0*abs(start_angle);
 const pfd maximum_speed = 420.0;
 Vector2<pfd> pointer_start = Vector2<pfd>(1700,125);
 
@@ -105,7 +108,7 @@ size_t progIdIndex=0;
 GLuint progId=0;
 bool test = false;
 bool running = true;
-pfd max_vel = 0.0;
+double max_vel = 0.0;
 
 double timestep = 0.01667;
 double timestepaccum = 0;
@@ -120,16 +123,19 @@ pfd targetrb = 5.0;
 
 pfd coin_alternate = -1.0;
 pfd coinrb = 5.0;
+bool rocketUsed = false;
 
 void Cleanup(void);
-void CreateObj(void);
-void DestroyVBO(void);
+void CreateScene(void);
+void DestroyCamera(void);
 void DestroyShaders(void);
 void update(void);
+
+//key callbacks
 void Q(void * p);
 void A (void * p);
 void D (void * p);
-void LM(void * p);
+void Space(void * p);
 void Enter(void* p);
 void Click(void * p);
 void CollisionCallback(const NewtonJoint* contactJoint, dFloat timestep, int threadIndex);
@@ -139,7 +145,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 	OpenGLWindow window(hInstance, nCmdShow, L"OpenGL Test", L"OPENGL", 1900, 1080);
 	openglContext = window.GetContext();
 
-	CreateObj();
+	CreateScene();
 	
 	window.GetContext()->setupScene();
 
@@ -153,10 +159,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 void Cleanup(void)
 {
 	DestroyShaders();
-	DestroyVBO();
+	DestroyCamera();
 }
 
-void CreateObj(void)
+void CreateScene(void)
 {
 	openglContext->pmgr->SetCollisionCallback(CollisionCallback);
 
@@ -165,18 +171,18 @@ void CreateObj(void)
 
 	cam = new Camera(openglContext, true);
 	cam->setPosition(Vector3<pfd> (0,10, 0));
-	cam->_frustum.setFovy(90.0);
-	cam->_frustum.setFarPlane(600.0);
+	cam->_frustum.setFovy(90);
+	cam->_frustum.setFarPlane(500.0);
 	openglContext->smgr->setCamera(cam);
 
-	openglContext->KeyMap.RegisterKeyCallback(0x20, LM, (void*)cam);
+	openglContext->KeyMap.RegisterKeyCallback(0x20, Space, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x51, Q, (void*)0);
 	openglContext->KeyMap.RegisterKeyCallback(0x41, A, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x44, D, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x0D, Enter, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x01, Click, (void*)cam);
 
-	openglContext->lmgr->addLight(Vector3<pfd>(0,15000,5000), Vector3<pfd>(1.0,1.0,1.0), 0.7, Light::POINT);
+	openglContext->lmgr->addLight(Vector3<pfd>(0, 15000, 5000), Vector3<pfd>(1.0, 1.0, 1.0), static_cast<pfd>(0.7), Light::POINT);
 	
 	UI_SG = openglContext->smgr->addUIObject();
 	glUI_SG = openglContext->smgr->addGLUIObject();
@@ -215,47 +221,67 @@ void CreateObj(void)
 	world = openglContext->smgr->addPhysicsObject();
 	world->setNewtonObjectType(PhysicsObject::MODEL);
 
-	
-	OBJModel model;
-	model.loadModel("Game Data\\Maps\\level1a.obj", true);
-	model.CalculateTangents();
+	#ifdef LOAD_OBJ_FILEFORMAT //this loads the model from OBJ format or MIN format depending on #define
 
-	size_t n = 0;
-	GLObject** glObjects = GLObject::loadModel(*openglContext, model, n);
+		OBJModel model;
+		model.loadModel("Game Data\\Maps\\level1a.obj", true);
+		model.CalculateTangents();
 
-	for (size_t i = 0; i < n; i++)
-	{
-		glWorld = glObjects[i];
+		std::vector<GLObject*> glObjects = GLObject::loadModel(*openglContext, model);
+		size_t n = glObjects.size();
+
+		for (size_t i = 0; i < n; i++) //n should be one
+		{
+			glWorld = glObjects[i];
+			test = glWorld->loadTexture("Game Data\\Skins\\level1a.dds");
+			test = glWorld->loadTexture("Game Data\\Skins\\level1a_NRM.dds");
+			test = glWorld->loadTexture("Game Data\\Skins\\level1a_DISP.dds");
+			glWorld->enableOctree(true, 3);
+			glWorld->createObject(GL_TRIANGLES);
+		}
+
+	#else
+
+		std::vector<GLObject*> glObjects;
+		glWorld = openglContext->smgr->addGLObject();
+		glObjects.push_back(glWorld);
+		size_t n = glObjects.size(); //n should be one
+
+		glWorld->loadMinObj("Game Data\\Maps\\level1a.min");
 		test = glWorld->loadTexture("Game Data\\Skins\\level1a.dds");
 		test = glWorld->loadTexture("Game Data\\Skins\\level1a_NRM.dds");
 		test = glWorld->loadTexture("Game Data\\Skins\\level1a_DISP.dds");
 		glWorld->enableOctree(true, 5);
 		glWorld->createObject(GL_TRIANGLES);
-	}
 
-	world->createObject(glObjects, n);
+	#endif
 
-	//You can save into yage format after loading any glObject
-	//glWorld->saveYageObj("Game Data\\Maps\\level1a.yage", true);
+	//You can save into min() format after loading any glObject
+	#ifdef SAVE_MIN_FORMAT
+			glWorld->saveMinObj("Game Data\\Maps\\level1a.min", true);
+	#endif
 
+	//this enables drawing octree and/or bounding box
+	#ifdef DRAW_OCTREE 
+
+			glObjects = GLObject::enableDrawLines(openglContext, glObjects, false, true);
+			n = glObjects.size();
+			for (size_t i = 1; i < n; i++)
+			{
+				glWorld = glObjects[i];
+				glWorld->createObject(GL_LINES);
+			}
+
+	#endif
+
+	world->createObject(glObjects);
+	
 	for (size_t i = 0; i < n; i++)
 	{
 		glWorld = glObjects[i];
 		glWorld->release();
 	}
 
-	/*
-	//if loading from yage file format
-	glWorld = openglContext->smgr->addGLObject();
-	glWorld->loadYageObj("Game Data\\Maps\\level1a.yage");
-	test = glWorld->loadTexture("Game Data\\Skins\\level1a.dds");
-	test = glWorld->loadTexture("Game Data\\Skins\\level1a_NRM.dds");
-	test = glWorld->loadTexture("Game Data\\Skins\\level1a_DISP.dds");
-	glWorld->enableOctree(true, 5);
-	glWorld->createObject(GL_TRIANGLES);
-	size_t n = 1;
-	world->createObject(&glWorld, n);
-	*/
 	if(test)
 	{
 		world->setWorldSizeFromBody(50, 10000, 50);
@@ -278,18 +304,32 @@ void CreateObj(void)
 	model2.loadModel("Game Data\\Characters\\player.obj", true);
 	model2.CalculateTangents();
 
-	GLObject** glObjects2 = GLObject::loadModel(*openglContext, model2, n);
-
-	for (size_t i = 0; i < n; i++)
+	std::vector<GLObject*> glObjects2 = GLObject::loadModel(*openglContext, model2);
+	n = glObjects2.size();
+	for (size_t i = 0; i < n; i++) //n should be 1
 	{
 		glPlayer = glObjects2[i];
 		test = glPlayer->loadTexture("Game Data\\Skins\\player.dds");
 		test = glPlayer->loadTexture("Game Data\\Skins\\player_NRM.dds");
 		test = glPlayer->loadTexture("Game Data\\Skins\\player_DISP.dds");
+		glPlayer->enableOctree(true, 1);
 		glPlayer->createObject(GL_TRIANGLES);
 	}
-	player->createObject(glObjects2, n);
-	
+
+	//this enables drawing octree and/or bounding box
+	#ifdef DRAW_OCTREE 
+		glObjects2 = GLObject::enableDrawLines(openglContext, glObjects2, false, true);
+		n = glObjects2.size();
+		for (size_t i = 1; i < n; i++)
+		{
+			glPlayer = glObjects2[i];
+			glPlayer->createObject(GL_LINES);
+		}
+	#endif
+
+	player->createObject(glObjects2);
+
+	//after loading to GPU delete mesh and materials to save RAM!
 	for (size_t i = 0; i < n; i++)
 	{
 		glPlayer = glObjects2[i];
@@ -353,8 +393,8 @@ void CreateObj(void)
 	model3.loadModel("Game Data\\Characters\\coin.obj", true);
 	model3.CalculateTangents();
 
-	GLObject** glObjects3 = GLObject::loadModel(*openglContext, model3, n);
-
+	std::vector<GLObject*> glObjects3 = GLObject::loadModel(*openglContext, model3);
+	n = glObjects3.size();
 	for (size_t i = 0; i < n; i++)
 	{
 		glCoin = glObjects3[i];
@@ -372,7 +412,7 @@ void CreateObj(void)
 		coinBuffer[i]->Object::rotateObj(q);
 		coinBuffer[i]->setMass(0.10f);
 		coinBuffer[i]->setNewtonObjectType(PhysicsObject::BOX);
-		coinBuffer[i]->createObject(glObjects3, n);
+		coinBuffer[i]->createObject(glObjects3);
 
 		if(test)
 		{
@@ -393,6 +433,7 @@ void CreateObj(void)
 		coin_pos++;
 	}
 
+	//after loading to GPU delete mesh and materials to save RAM!
 	for (size_t i = 0; i < n; i++)
 	{
 		glCoin = glObjects3[i];
@@ -403,7 +444,8 @@ void CreateObj(void)
 	model4.loadModel("Game Data\\Characters\\target.obj", true);
 	model4.CalculateTangents();
 
-	GLObject** glObjects4 = GLObject::loadModel(*openglContext, model4, n);
+	std::vector<GLObject*> glObjects4 = GLObject::loadModel(*openglContext, model4);
+	n = glObjects4.size();
 
 	for (size_t i = 0; i < n; i++)
 	{
@@ -422,7 +464,7 @@ void CreateObj(void)
 		targetBuffer[i]->Object::rotateObj(q);
 		targetBuffer[i]->setMass(0.10f);
 		targetBuffer[i]->setNewtonObjectType(PhysicsObject::BOX);
-		targetBuffer[i]->createObject(glObjects4, n);
+		targetBuffer[i]->createObject(glObjects4);
 
 		if(test)
 		{
@@ -444,6 +486,7 @@ void CreateObj(void)
 		target_pos++;
 	}
 
+	//after loading to GPU delete mesh and materials to save RAM!
 	for (size_t i = 0; i < n; i++)
 	{
 		glTarget = glObjects4[i];
@@ -453,8 +496,8 @@ void CreateObj(void)
 	OBJModel model5;
 	model5.loadModel("Game Data\\Characters\\arrow.obj", true);
 
-	GLObject** glObjects5 = GLObject::loadModel(*openglContext, model5, n);
-
+	std::vector<GLObject*> glObjects5 = GLObject::loadModel(*openglContext, model5);
+	n = glObjects5.size();
 	for (size_t i = 0; i < n; i++)
 	{
 		glArrow = glObjects5[i];
@@ -473,7 +516,7 @@ void CreateObj(void)
 		arrowBuffer[i]->enableTransformCallback(true);
 		arrowBuffer[i]->setMass(5.0f);
 		arrowBuffer[i]->setNewtonObjectType(PhysicsObject::BOX);
-		arrowBuffer[i]->createObject(glObjects5, n);
+		arrowBuffer[i]->createObject(glObjects5);
 	
 		arrowBuffer[i]->setPosition(Vector3<pfd>(-1000,-1000,-1000));
 
@@ -482,6 +525,7 @@ void CreateObj(void)
 		arrowBuffer[i]->setProgram(progId, progIdIndex);
 	}
 
+	//after loading to GPU delete mesh and materials to save RAM!
 	for (size_t i = 0; i < n; i++)
 	{
 		glArrow = glObjects5[i];
@@ -491,20 +535,23 @@ void CreateObj(void)
 	skybox = openglContext->smgr->addObject();
 	OBJModel model6;
 	model6.loadModel("Game Data\\Maps\\skybox.obj", true);
-	GLObject** glObjects6 = GLObject::loadModel(*openglContext, model6, n);
+	std::vector<GLObject*> glObjects6 = GLObject::loadModel(*openglContext, model6);
+	n = glObjects6.size();
+
 	for (size_t i = 0; i < n; i++)
 	{
 		glSkybox = glObjects6[i];
 		test = glSkybox->loadTexture("Game Data\\Skins\\skybox.dds");
 		glSkybox->createObject(GL_TRIANGLES);
 	}
-	skybox->createObject(glObjects6, n);
+	skybox->createObject(glObjects6);
 
 	skybox->setPosition(player->getPosition());
 	progIdIndex = openglContext->smgr->linkProgram(arrowVert, arrowFrag);
 	progId = openglContext->smgr->getProgramId(progIdIndex);
 	skybox->setProgram(progId, progIdIndex);
 
+	//after loading to GPU delete mesh and materials to save RAM!
 	for (size_t i = 0; i < n; i++)
 	{
 		glSkybox = glObjects6[i];
@@ -521,24 +568,24 @@ void update()
 	{
 		timeover420 += timestep + timeover125;
 		timeover125 += timestep;
-		timestepaccum = (max_vel/7500.0)*timestep;
-		timestepaccum += 0.01 * max_vel* timestep*timeover420;
+		timestepaccum = (max_vel/static_cast<pfd>(7500.0))*timestep;
+		timestepaccum += static_cast<pfd>(0.01) * max_vel* timestep*timeover420;
 		max_vel -= timestep + timestepaccum;
 	}
 	else if(max_vel > 420.0)
 	{
 		timeover420 += timestep + timeover125;
 		timeover125 += timestep;
-		timestepaccum = (max_vel/7500.0)*timestep;
-		timestepaccum += 0.001 * max_vel* timestep*timeover420;
+		timestepaccum = (max_vel / static_cast<pfd>(7500.0))*timestep;
+		timestepaccum += static_cast<pfd>(0.001) * max_vel* timestep*timeover420;
 		max_vel -= timestep + timestepaccum;
 	}
 	else if(max_vel > 125)
 	{
 		timeover420 = 0;
 		timeover125 += timestep;
-		timestepaccum = (max_vel/7500.0)*timestep;
-		timestepaccum += 0.0001 * max_vel* timestep*timeover125;
+		timestepaccum = (max_vel / static_cast<pfd>(7500.0))*timestep;
+		timestepaccum += static_cast<pfd>(0.0001) * max_vel* timestep*timeover125;
 		max_vel -= timestep + timestepaccum;
 	}
 	else
@@ -599,7 +646,7 @@ void update()
 	if(vmag < max_vel)
 	{
 		pfd strength = 6.5;
-		pfd m = -strength/max_vel;
+		pfd m = -strength / static_cast<pfd>(max_vel);
 		pfd b = strength;
 		strength = m*vmag + b;
 		if(strength > 0)
@@ -607,7 +654,7 @@ void update()
 			accumulator += delta;
 			while(accumulator > timestep)
 			{
-				player->applyForce(move*max_vel*strength);
+				player->applyForce(move*static_cast<pfd>(max_vel)*strength);
 				accumulator -= timestep;
 			}
 		}
@@ -662,7 +709,7 @@ void update()
 	skybox->setMaterialProperties(Vector3<pfd>(0.5f, 0.0, 0.0));
 }
 
-void DestroyVBO(void)
+void DestroyCamera(void)
 {
 	delete cam;
 }
@@ -693,10 +740,14 @@ void D(void * p)
 	player->setVelocity(vel);
 }
 
-void LM(void * p)
+void Space(void * p)
 {
-	Camera*c = static_cast<Camera*>(p);
-	player->applyForce(Vector3<pfd>(0,200,0) + Vector3<pfd>(0,0,-1)*max_vel);
+	if (!rocketUsed)
+	{
+		Camera*c = static_cast<Camera*>(p);
+		player->applyForce(Vector3<pfd>(0, 100000, 0) + c->getDir()*100000);
+		rocketUsed = true;
+	}
 }
 
 void Click(void * p)
@@ -710,7 +761,7 @@ void Click(void * p)
 	
 	arrowBuffer[arrow_pos]->setPosition(player->getPosition() + c->getDir()*(player->getRadius() + arrowBuffer[arrow_pos]->getRadius()));
 	pfd player_vel = player->getVelocity().magnitude();
-	arrowBuffer[arrow_pos]->setVelocity(dir*(100.0 + player_vel));
+	arrowBuffer[arrow_pos]->setVelocity(dir*(static_cast<pfd>(100.0) + player_vel));
 	arrow_pos++;
 	if(arrow_pos == NO_ARROWS)
 	{
@@ -720,6 +771,7 @@ void Click(void * p)
 
 void Enter(void * p)
 {
+	rocketUsed = false;
 	coin_pos = 0;
 	score = 0;
 	target_pos = 0;
@@ -742,8 +794,8 @@ void Enter(void * p)
 		target_pos++;
 	}
 	
-	max_vel = 40.0f;
-	player->setVelocity(Vector3<pfd>(0,0,-1)*max_vel);
+	max_vel = 40.0;
+	player->setVelocity(Vector3<pfd>(0,0,-1)*static_cast<pfd>(max_vel));
 	player->setPosition(Vector3<pfd>(0,2,0));
 	Camera*c = static_cast<Camera*>(p);
 	c->lookAt(Vector3<pfd>(0,0,-1));
@@ -763,8 +815,8 @@ void CollisionCallback(const NewtonJoint* contactJoint, dFloat timestep, int thr
 		return;
 	if(obj1->UniqueId == PLAYER_UNIQUE && obj2->UniqueId == COIN_UNIQUE)
 	{
-		pfd floor = obj2->findFloorRayCast(0,-100.0*coin_pos);
-		obj2->setPosition(Vector3<pfd>(0, floor + obj2->getHeight(), -100.0*coin_pos));
+		pfd floor = obj2->findFloorRayCast(0, static_cast<pfd>(-100.0)*coin_pos);
+		obj2->setPosition(Vector3<pfd>(0, floor + obj2->getHeight(), static_cast<pfd>(-100.0)*coin_pos));
 		coin_pos++;
 		score += 100;
 		max_vel += 100.0;
@@ -772,8 +824,8 @@ void CollisionCallback(const NewtonJoint* contactJoint, dFloat timestep, int thr
 	}
 	else if(obj2->UniqueId == PLAYER_UNIQUE && obj1->UniqueId == COIN_UNIQUE)
 	{
-		pfd floor = obj1->findFloorRayCast(0,-100.0*coin_pos);
-		obj1->setPosition(Vector3<pfd>(0, floor + obj1->getHeight(), -100.0*coin_pos));
+		pfd floor = obj1->findFloorRayCast(0, static_cast<pfd>(-100.0)*coin_pos);
+		obj1->setPosition(Vector3<pfd>(0, floor + obj1->getHeight(), static_cast<pfd>(-100.0)*coin_pos));
 		coin_pos++;
 		score += 100;
 		max_vel += 100.0;

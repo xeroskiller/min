@@ -38,7 +38,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "GLObject.h"
 #include "aabbox3.h"
 #include "Matrix.h"
-#include <cassert>
 
 PhysicsObject::PhysicsObject(OpenGLContext& context) : BoundedObject(context)
 {
@@ -66,13 +65,13 @@ PhysicsObject::~PhysicsObject(void)
 
 // must set mass before calling
 //must see NewtonBounding type
-void PhysicsObject::createObject(GLObject** glObject, size_t n)
+void PhysicsObject::createObject(std::vector<GLObject*>& glObjects)
 {
-	if(n > 0)
+	if(glObjects.size() > 0)
 	{
 		//create BoundedObject
 		this->setBoundingVolume(BoundingVolume<pfd>::AABB);
-		this->BoundedObject::createObject(glObject, n);
+		this->BoundedObject::createObject(glObjects);
 		Vector3<pfd> origin = this->_boundingVolume->getCenter();
 		//create box
 		if(_newtonType == BOX)
@@ -95,15 +94,17 @@ void PhysicsObject::createObject(GLObject** glObject, size_t n)
 			for(size_t i=0; i < _numGLObjects; i++) //this is for sub-meshes, only 1 for now
 			{
 				Mesh* mesh = getGLObject(i).getMesh();
-				int index;
+				int index0, index1, index2;
 				Vector3<pfd> face[3];
 				const size_t IndexSize = mesh->_indices.size();
 				for(size_t j=0; j< IndexSize; j+=3)
 				{
-					index = mesh->_indices[j];
-					face[0] = Vector3<pfd>(mesh->_vertices[index]);
-					face[1] = Vector3<pfd>(mesh->_vertices[index+1]);
-					face[2] = Vector3<pfd>(mesh->_vertices[index+2]);
+					index0 = mesh->_indices[j];
+					index1 = mesh->_indices[j+1];
+					index2 = mesh->_indices[j+2];
+					face[0] = Vector3<pfd>(mesh->_vertices[index0]);
+					face[1] = Vector3<pfd>(mesh->_vertices[index1]);
+					face[2] = Vector3<pfd>(mesh->_vertices[index2]);
 				
 					NewtonTreeCollisionAddFace(_collision, 3, &face->_arr[0], 3*sizeof(pfd), i + 1);
 				}

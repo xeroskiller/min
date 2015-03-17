@@ -41,6 +41,7 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "Quaternion.h"
 #include <string>
 #include <vector>
+#include <cassert>
 
 class MD5Animation
 {

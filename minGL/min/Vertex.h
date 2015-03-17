@@ -53,6 +53,7 @@ public:
 		if(this != &A)
 		{
 			_index = A._index;
+			_triangle = A._triangle;
 		}
 		return *this;
 	}
@@ -61,6 +62,7 @@ public:
 		if(this != &A)
 		{
 			_index = A._index;
+			_triangle = A._triangle;
 		}
 	}
 	T getIndex()

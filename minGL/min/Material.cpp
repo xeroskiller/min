@@ -35,7 +35,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "stdafx.h"
 #include "Material.h"
-#include <cassert>
 
 Material::Material()
 {
@@ -78,7 +77,7 @@ Material::~Material()
 		}
 	}
 	if(_colors)
-		delete _colors;
+		delete [] _colors;
 }
 
 const Vector4<pfd>* Material::GetColor() const
@@ -99,16 +98,24 @@ void Material::SetColor(Vector4<pfd>* color, size_t size)
 
 Texture* Material::GetTexture(size_t n)
 {
-	assert(n < MAX_TEXTURE);
-	return _texture[n];
+	if (n < MAX_TEXTURE)
+	{
+		return _texture[n];
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 void Material::SetTexture(Texture* text, size_t n)
 {
-	assert(n < MAX_TEXTURE);
-	if(_texture[n] != 0)
+	if (n < MAX_TEXTURE)
 	{
-		delete _texture[n];
+		if (_texture[n] != 0)
+		{
+			delete _texture[n];
+		}
+		_texture[n] = text;
 	}
-	_texture[n] = text;
 }

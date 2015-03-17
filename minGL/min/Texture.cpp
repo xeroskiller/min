@@ -67,6 +67,7 @@ Texture::~Texture(void)
 		delete [] _data;
 }
 
+//Loads Either a .BMP or a .DDS texture. The .DDS needs to be either a DXT1,DXT3,DXT5 variant: see LoadDDSTexture()
 bool Texture::LoadTexture(const std::string& absFilePath)
 {
 	this->WriteExtension(absFilePath);
@@ -105,7 +106,10 @@ bool Texture::LoadBMPTexture(const std::string& absFilePath)
 		int header_size;
 		file.read((char*)&header_size, 4); // should be 40
 
-		assert(header_size == 40);
+		if (header_size != 40)
+		{
+			return false;
+		}
 
 		file.read((char*)&_width, 4);
 
@@ -232,6 +236,7 @@ void Texture::WriteExtension(const std::string& texturePath)
 {
 	size_t dot;
 	char ch;
+	//find the '.'
 	for(size_t i=0; i< texturePath.size(); i++)
 	{
 		ch = texturePath[i];
@@ -242,10 +247,12 @@ void Texture::WriteExtension(const std::string& texturePath)
 			break;
 		}
 	}
+	//reset _extension
 	if(_extension.size() > 0)
 	{
-		_extension = std::string("");
+		_extension.clear();
 	}
+	//write everything <right> of the '.'
 	for(size_t i = dot; i<texturePath.size(); i++)
 	{
 		_extension += texturePath[i];

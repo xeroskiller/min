@@ -46,7 +46,6 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "Matrix.h"
 #include "Quaternion.h"
 #include <math.h>
-#include <cassert>
 
 template <class T> class oobbox3 : public BoundingVolume<T>
 {

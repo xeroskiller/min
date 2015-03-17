@@ -48,7 +48,8 @@ class Mesh;
 class Material;
 class glLocationManager;
 #include "glLocationManager.h"
-
+class DrawManager;
+#include "DrawManager.h"
 template <class T> class aabbox3;
 #include "bsphere.h"
 #include <string>
@@ -62,10 +63,6 @@ public:
 	GLObject(OpenGLContext& glContext);
 	virtual ~GLObject();
 	GLuint getVaoId();
-	size_t getDrawCount();
-	GLsizei getIndexCount(size_t n);
-	GLsizei getVertexCount(size_t n);
-	GLsizei getStart(size_t n);
 	GLenum getRenderType();
 	Mesh* getMesh();
 	void setMesh(Mesh& mesh);
@@ -73,9 +70,10 @@ public:
 	void setMaterial(Material& mat);
 	virtual void createObject(GLenum renderType);
 	bool loadTexture(const std::string& texturePath);
-	static GLObject** loadModel(OpenGLContext& glContext, OBJModel& model, size_t& n);
-	bool saveYageObj(const std::string& absFilePath, bool overwrite);
-	bool loadYageObj(const std::string& absFilePath);
+	static std::vector<GLObject*> loadModel(OpenGLContext& glContext, OBJModel& model);
+	static std::vector<GLObject*> enableDrawLines(OpenGLContext* glContext, std::vector<GLObject*>& list, bool drawAABB = false, bool drawOctree = false);
+	bool saveMinObj(const std::string& absFilePath, bool overwrite);
+	bool loadMinObj(const std::string& absFilePath);
 	void scaleUV(pfd scaleFactor);
 	bool isIndex();
 	bool isTexture(size_t n);
@@ -84,8 +82,12 @@ public:
 	glLocationManager* getGLLocManager();
 	size_t getSceneIndex();
 	void release();
-	bsphere<pfd>* getBaseFrustumSphere() { return _frustumSphere[0];}
-	bsphere<pfd>* getFrustumSphere(size_t n) { return _frustumSphere[n + 1];}
+	bsphere<pfd> getBaseFrustumSphere() { return _frustumSphere;}
+	void updateDrawTree(Frustum* frustum, const Vector3<pfd>& worldPos);
+	size_t getDrawCount();
+	GLsizei getIndexCount(size_t n);
+	GLsizei getVertexCount(size_t n);
+	GLsizei getStart(size_t n);
 protected:
 	OpenGLContext* _glContext;
 	size_t _vertSize;
@@ -117,14 +119,12 @@ protected:
 	glLocationManager* _glLocManager;
 	size_t _objIndex;
 	bool _created;
-	size_t _drawCount;
-	bsphere<pfd>* _frustumSphere[9];
-	GLsizei _octreeStart[9];
+	bsphere<pfd> _frustumSphere;
 	Octree<GLIndex, pfd>* _octree;
 	size_t _octreeDepth;
 	bool _isOctree;
 	std::vector<Triangle<GLIndex>> _triangleBuffer;
-	
+	DrawManager* _drawManager;
 };
 
 #endif

@@ -72,7 +72,6 @@ GLUIObject::GLUIObject(OpenGLContext& glContext)
 	_created = false;
 }
 
-
 GLUIObject::~GLUIObject(void)
 {
 	if(_mesh)
@@ -115,15 +114,13 @@ void GLUIObject::createObject(GLenum renderType)
 {
 	if(!_created)
 	{
+		check_glError(_glContext, L"OpenGL error", L"Error: GLError found on entry to GLUIObject::createObject.");
+
 		_renderType = renderType;
 		size_t vertSize = _mesh->_uiVertices.size();
 		size_t indexSize = _mesh->_indices.size();
-
 		_vertSize = vertSize;
 		_indexSize = indexSize;
-
-		GLenum ErrorCheckValue = glGetError();
-		assert(ErrorCheckValue == 0);
 
 		glGenVertexArrays(1, &_vaoId);
 		glBindVertexArray(_vaoId);

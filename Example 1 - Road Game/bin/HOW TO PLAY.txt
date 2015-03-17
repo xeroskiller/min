@@ -1,0 +1,5 @@
+SD - Strafe Left & Right & shoot arrows
+Space - Rocket boost(1 per round)
+Enter - Respawn
+Left Click - shoot arrow
+Q - Quit Game

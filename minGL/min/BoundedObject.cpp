@@ -57,23 +57,25 @@ void BoundedObject::setBoundingVolume(BoundingVolume<pfd>::BoundingVolumeEnum ty
 	_type = type;
 }
 //must call setBoundingVolume before creation
-void BoundedObject::createObject(GLObject** glObject, size_t n)
+void BoundedObject::createObject(std::vector<GLObject*>& glObjects)
 {
+	size_t n = glObjects.size();
 	if(n > 0)
 	{
-		this->Object::createObject(glObject, n);
+		this->Object::createObject(glObjects);
 	
 		switch (_type)
 		{
 			case BoundingVolume<pfd>::SPHERE:
 			{
 				Mesh* mesh = getGLObject(0).getMesh();
-				const size_t vertSize = mesh->_vertices.size();
+				size_t vertSize = mesh->_vertices.size();
 				bsphere<pfd> sphere((Vector4<pfd>*)(&mesh->_vertices[0]), vertSize);
 
 				for(size_t i=1; i<n; i++)
 				{
 					mesh = getGLObject(i).getMesh();
+					vertSize = mesh->_vertices.size();
 					sphere.add((Vector4<pfd>*)(&mesh->_vertices[0]), vertSize);
 				}
 				_boundingVolume = new bsphere<pfd>(sphere.getCenter(), sphere.getRadius());
@@ -82,11 +84,12 @@ void BoundedObject::createObject(GLObject** glObject, size_t n)
 			case BoundingVolume<pfd>::AABB:
 			{
 				Mesh* mesh = getGLObject(0).getMesh();
-				const size_t vertSize = mesh->_vertices.size();
+				size_t vertSize = mesh->_vertices.size();
 				aabbox3<pfd> box(&mesh->_vertices[0], vertSize);
 				for(size_t i=1; i<n; i++)
 				{
 					mesh = getGLObject(i).getMesh();
+					vertSize = mesh->_vertices.size();
 					box.add(&mesh->_vertices[0], vertSize);
 				}
 				_boundingVolume = new aabbox3<pfd>(box.getMin(), box.getMax());
@@ -95,11 +98,12 @@ void BoundedObject::createObject(GLObject** glObject, size_t n)
 			case BoundingVolume<pfd>::OOBB:
 			{
 				Mesh* mesh = getGLObject(0).getMesh();
-				const size_t vertSize = mesh->_vertices.size();
+				size_t vertSize = mesh->_vertices.size();
 				aabbox3<pfd> box(&mesh->_vertices[0], vertSize);
 				for(size_t i=1; i<n; i++)
 				{
 					mesh = getGLObject(i).getMesh();
+					vertSize = mesh->_vertices.size();
 					box.add(&mesh->_vertices[0], vertSize);
 				}
 				_boundingVolume = new oobbox3<pfd>(box);

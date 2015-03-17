@@ -75,7 +75,7 @@ public:
 	const Camera* getCamera();
 	void setCamera(Camera*);
 	void setCameraType(PlayerObjectEnum camType);
-	virtual void createObject(GLObject** glObject, size_t n);
+	virtual void createObject(std::vector<GLObject*>& glObjects);
 	virtual void setRotation(const Quaternion<pfd>& q);
 	virtual void setPosition(const Vector3<pfd>& pos);
 	virtual std::deque<Object*>::iterator Update(Camera& cam, double ref_time, std::deque<Object*>::iterator k);

@@ -50,37 +50,28 @@ Object::Object(OpenGLContext& glContext)
 	_isScaled = false;
 	_time_to_live = -1;
 	_reference_time = -1;
-	_glObjects = 0;
 	_isUpdated = false;
 	_numGLObjects = 0;
 }
 
-Object::~Object(void) {	}
-
-void Object::createObject(GLObject** glObject, size_t n)
+Object::~Object(void) 
 {
-	if(n > 0)
+	if (_bSphere)
+		delete [] _bSphere;
+}
+
+void Object::createObject(std::vector<GLObject*>& glObjList)
+{
+	_numGLObjects = glObjList.size();
+	if(_numGLObjects > 0)
 	{
 		GLObject* glObj = 0;
-		_glObjects = glObject;
-		_numGLObjects = n;
-		_frustumSphere = new bsphere<pfd>*[n];
-		for(size_t i=0; i < n; i++)
+		_glObjects = glObjList;
+		_bSphere = new bsphere<pfd>[_numGLObjects];
+		for (size_t i = 0; i < _numGLObjects; i++)
 		{
-			glObj = glObject[i];
-			assert(glObj != 0);
-			if(glObj->isCreated())
-			{
-				bsphere<pfd>* sphere = glObj->getBaseFrustumSphere();
-				if(sphere != 0)
-				{
-					_frustumSphere[i] = sphere;
-				}
-				else
-				{
-					_frustumSphere[i] = new bsphere<pfd>(Vector3<pfd>(0,0,0), 1.0);
-				}
-			}
+			glObj = (glObjList)[i];
+			_bSphere[i] = glObj->getBaseFrustumSphere();
 		}
 	}
 }
@@ -110,9 +101,9 @@ const Vector3<pfd>& Object::getPosition()
 void Object::setPosition(const Vector3<pfd>& pos)
 {
 	_isUpdated = false;
-	for(size_t i=0; i< _numGLObjects; i++)
+	for (size_t i = 0; i< _numGLObjects; i++)
 	{
-		_frustumSphere[i]->setPosition(pos);
+		_bSphere[i].setPosition((_bSphere[i].getCenter() - this->getPosition()) + pos);
 	}
 	_position = pos;
 }
@@ -299,16 +290,31 @@ void Object::setTimeToLive(size_t seconds)
 
 GLObject& Object::getGLObject(size_t n)
 {
-	assert( n < _numGLObjects);
-	return *_glObjects[n];
-}
-
-const bsphere<pfd>& Object::getFrustumSphere(size_t n)
-{
-	return *_frustumSphere[n];
+	if (n < _numGLObjects)
+	{
+		return *_glObjects[n];
+	}
+	else
+	{
+		fatal_error(_glContext, L"GLObject Buffer Overrun", L"Improper index passed to getGLObject()");
+	}
 }
 
 bool Object::isUpdated()
 {
 	return _isUpdated;
+}
+
+bool Object::testFrustumIntersection(size_t n, Frustum* frustum)
+{
+	return frustum->isSphereInFrustum(_bSphere[n]) != Frustum::FrustumIntersectionEnum::OUTSIDE;
+}
+
+void Object::updateDrawTree(Frustum* frustum, const Vector3<pfd>& worldPos)
+{
+	for (size_t i = 0; i < _numGLObjects; i++)
+	{
+		GLObject& glObj = getGLObject(i);
+		glObj.updateDrawTree(frustum, worldPos);
+	}
 }

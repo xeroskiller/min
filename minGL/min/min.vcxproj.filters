@@ -99,9 +99,6 @@
     <ClInclude Include="PlayerObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Precision.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Quaternion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -171,10 +168,13 @@
     <ClInclude Include="SystemClock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="min%28%29.h">
+    <ClInclude Include="DrawManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="minutils.h">
+    <ClInclude Include="Minutils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Min%28%29.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -281,7 +281,10 @@
     <ClCompile Include="SystemClock.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="minutils.cpp">
+    <ClCompile Include="DrawManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Minutils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

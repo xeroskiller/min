@@ -214,7 +214,6 @@ public:
 	}
 	/*const T operator[](size_t n)
 	{
-		assert(n <= 3);
 		return _arr[n];
 	}*/
 private:

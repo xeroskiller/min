@@ -39,6 +39,8 @@ along with Min() Game Engine.  If not, see <http://www.gnu.org/licenses/>.
 #include "min().h"
 #include <string>
 
+#define DRAW_OCTREE
+
 OpenGLContext* openglContext;
 PhysicsObject* world =0;
 GLObject* glWorld =0;
@@ -57,6 +59,7 @@ bool running = true;
 
 double old_time;
 double now_time;
+double deltaTime;
 
 void Cleanup(void);
 void CreateScene(void);
@@ -68,9 +71,6 @@ void W (void * p);
 void S (void * p);
 void A (void * p);
 void D (void * p);
-void LM(void * p);
-void Enter(void* p);
-void Click(void * p);
 void CollisionCallback(const NewtonJoint* contactJoint, dFloat timestep, int threadIndex);
 
 int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
@@ -102,19 +102,16 @@ void CreateScene(void)
 	cam = new Camera(openglContext, true);
 	cam->setPosition(Vector3<pfd> (0,10, 0));
 	cam->_frustum.setFovy(90.0);
-	cam->_frustum.setFarPlane(600.0);
+	cam->_frustum.setFarPlane(400.0);
 	openglContext->smgr->setCamera(cam);
 
-	openglContext->KeyMap.RegisterKeyCallback(0x20, LM, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x51, Q, (void*)0);
 	openglContext->KeyMap.RegisterKeyCallback(0x57, W, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x53, S, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x41, A, (void*)cam);
 	openglContext->KeyMap.RegisterKeyCallback(0x44, D, (void*)cam);
-	openglContext->KeyMap.RegisterKeyCallback(0x0D, Enter, (void*)cam);
-	openglContext->KeyMap.RegisterKeyCallback(0x01, Click, (void*)cam);
 
-	openglContext->lmgr->addLight(Vector3<pfd>(5000,15000,5000), Vector3<pfd>(1.0,1.0,1.0), 0.7, Light::POINT);
+	openglContext->lmgr->addLight(Vector3<pfd>(5000,15000,5000), Vector3<pfd>(1.0,1.0,1.0), static_cast<pfd>(0.7), Light::POINT);
 
 	world = openglContext->smgr->addPhysicsObject();
 	world->setNewtonObjectType(PhysicsObject::MODEL);
@@ -123,20 +120,29 @@ void CreateScene(void)
 	model.loadModel("Game Data\\Maps\\park.obj", true);
 	model.CalculateTangents();
 	size_t n = 0;
-	GLObject** glObjects = GLObject::loadModel(*openglContext, model, n);
+	std::vector<GLObject*> glObjects = GLObject::loadModel(*openglContext, model);
 
-	for(size_t i=0; i < n; i++)
-	{
-		glWorld = glObjects[i];
-		test = glWorld->loadTexture("Game Data\\Skins\\dirt.dds");
-		test = glWorld->loadTexture("Game Data\\Skins\\grass6.dds");
-		test = glWorld->loadTexture("Game Data\\Skins\\grass5.dds");
-		glWorld->enableOctree(true, 5);
-		glWorld->createObject(GL_TRIANGLES);
-	}
+	glWorld = glObjects[0];
+	test = glWorld->loadTexture("Game Data\\Skins\\dirt.dds");
+	test = glWorld->loadTexture("Game Data\\Skins\\grass6.dds");
+	test = glWorld->loadTexture("Game Data\\Skins\\grass5.dds");
+	glWorld->enableOctree(true, 3);
+	glWorld->createObject(GL_TRIANGLES);
 	
-	world->createObject(glObjects, n);
-	
+	#ifdef DRAW_OCTREE
+
+		glObjects = GLObject::enableDrawLines(openglContext, glObjects, false, true);
+		n = glObjects.size();
+		for (size_t i = 1; i < n; i++)
+		{
+			glWorld = glObjects[i];
+			glWorld->createObject(GL_LINES);
+		}
+
+	#endif
+	world->createObject(glObjects);
+
+	//after loading to GPU delete mesh and materials to save RAM!
 	for(size_t i=0; i < n; i++)
 	{
 		glWorld = glObjects[i];
@@ -170,8 +176,9 @@ void CreateScene(void)
 	test = animmodel->LoadAnim("Game Data\\Characters\\boblampclean.md5anim");
 	animmodel->CalculateTangents();
 	n = 0;
-	GLObject** glAnimObjects = GLAnimatedObject::loadModel(*openglContext, *animmodel, n);
 
+	std::vector<GLObject*> glAnimObjects = GLAnimatedObject::loadModel(*openglContext, *animmodel);
+	n = glAnimObjects.size();
 	anim = openglContext->smgr->addPhysicsObject();
 	anim->setNewtonObjectType(PhysicsObject::BOX);
 
@@ -181,11 +188,12 @@ void CreateScene(void)
 		test = glAnim->loadTexture("Game Data\\Skins\\dirt.dds");
 		test = glAnim->loadTexture("Game Data\\Skins\\grass6.dds");
 		test = glAnim->loadTexture("Game Data\\Skins\\grass5.dds");
-		glAnim->enableOctree(true, 5);
 		glAnim->createObject(GL_TRIANGLES);
 	}
 
-	anim->createObject(glAnimObjects, n);
+	anim->createObject(glAnimObjects);
+
+	//after loading to GPU delete mesh and materials to save RAM!
 	for(size_t i=0; i < n; i++)
 	{
 		glAnim = glAnimObjects[i];
@@ -210,7 +218,7 @@ void update()
 {
 	old_time = now_time;
 	now_time = openglContext->SysClock->GetCurrentTime();
-	double deltaTime = now_time - old_time;
+	deltaTime = now_time - old_time;
 	animmodel->Update(deltaTime);
 
 	openglContext->KeyMap.Update();
@@ -243,40 +251,25 @@ void Q(void * p)
 void W(void * p)
 {
 	Camera*c = static_cast<Camera*>(p);
-	c->setPosition(c->getPosition() + c->getDir() * 0.01);
+	c->setPosition(c->getPosition() + c->getDir() * static_cast<pfd>(deltaTime*2.0));
 }
 
 void S(void * p)
 {
 	Camera*c = static_cast<Camera*>(p);
-	c->setPosition(c->getPosition() + c->getDir() * -0.01);
+	c->setPosition(c->getPosition() + c->getDir() * static_cast<pfd>(-deltaTime*2.0));
 }
 
 void A(void * p)
 {
 	Camera*c = static_cast<Camera*>(p);
-	c->setPosition(c->getPosition() + c->getRight() * -0.01);
+	c->setPosition(c->getPosition() + c->getRight() * static_cast<pfd>(-deltaTime*2.0));
 }
 
 void D(void * p)
 {
 	Camera*c = static_cast<Camera*>(p);
-	c->setPosition(c->getPosition() + c->getRight() * 0.01);
-}
-
-void LM(void * p)
-{
-	
-}
-
-void Click(void * p)
-{
-	
-}
-
-void Enter(void * p)
-{
-	
+	c->setPosition(c->getPosition() + c->getRight() * static_cast<pfd>(deltaTime*2.0));
 }
 
 void CollisionCallback(const NewtonJoint* contactJoint, dFloat timestep, int threadIndex)
