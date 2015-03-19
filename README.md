@@ -11,6 +11,8 @@ These packages have been tested for compilation under Visual Studio 2013 - XP pl
 
 The package also comes with the GLEW and Newton Game Dynamics library and header files and should work seamlessly with the engine. You must make sure to add glew32.lib and newton.lib to the .exe directory of any new projects.
 
-You can download GLEW at http://glew.sourceforge.net/.
+You can download GLEW at http://glew.sourceforge.net/
 
 You can download Newton Game Dynamics at http://www.newtondynamics.com/
+
+MD5 Model and MD5 Animation Support was pulled and modified from http://3dgep.com/loading-and-animating-md5-models-with-opengl/ by Jeremiah van Oosten which was derived from http://tfc.duke.free.fr/coding/md5-specs-en.html by David Henry. 
